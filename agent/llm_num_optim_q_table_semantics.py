@@ -88,19 +88,50 @@ class LLMNumOptimQTableSemanticsAgent:
     def train_policy(self, world: BaseWorld, logdir):
 
         def parse_parameters(input_text):
-            # This regex looks for integers or floating-point numbers (including optional sign)
-            s = input_text.split("\n")[-1]
+            # Robust parsing for LLM responses. First try to find explicit "params[i]: value"
+            # across the entire response. If that fails or is incomplete, fall back to
+            # extracting all numeric values and using the first `rank` of them.
+            s = input_text
             print("response:", s)
-            pattern = re.compile(r"params\[(\d+)\]:\s*([+-]?\d+(?:\.\d+)?)")
-            matches = pattern.findall(s)
+            indexed_pattern = re.compile(r"params\[(\d+)\]:\s*([+-]?\d+(?:\.\d+)?)")
+            indexed_matches = indexed_pattern.findall(s)
 
-            # Convert matched strings to float (or int if you prefer to differentiate)
-            results = []
-            for match in matches:
-                results.append(float(match[1]))
-            print(results)
-            assert len(results) == self.rank
-            return np.array(results).reshape((self.rank,))
+            # If we have indexed matches, place them into the correct order
+            if indexed_matches:
+                temp = [None] * self.rank
+                for idx_str, val_str in indexed_matches:
+                    try:
+                        idx = int(idx_str)
+                        if 0 <= idx < self.rank:
+                            temp[idx] = float(val_str)
+                    except Exception:
+                        continue
+                # If any entries are still None, try to fill from plain numeric extraction
+                if any(x is None for x in temp):
+                    float_pattern = re.compile(r"[+-]?\d+(?:\.\d+)?")
+                    float_matches = float_pattern.findall(s)
+                    # Use float matches in order to fill empty slots
+                    fm_iter = iter([float(x) for x in float_matches])
+                    for i in range(self.rank):
+                        if temp[i] is None:
+                            try:
+                                temp[i] = next(fm_iter)
+                            except StopIteration:
+                                break
+                if all(x is not None for x in temp):
+                    return np.array(temp).reshape((self.rank,))
+
+            # Fallback: extract the first `rank` numeric tokens from the whole text
+            float_pattern = re.compile(r"[+-]?\d+(?:\.\d+)?")
+            float_matches = float_pattern.findall(s)
+            results = [float(x) for x in float_matches]
+            if len(results) >= self.rank:
+                return np.array(results[: self.rank]).reshape((self.rank,))
+
+            # If we still don't have enough numbers, raise an informative error
+            raise ValueError(
+                f"Could not parse {self.rank} parameters from LLM output. Found {len(results)} numbers.\nFull response:\n{s}"
+            )
 
         def str_nd_examples(replay_buffer: EpisodeRewardBufferNoBias, traj_buffer: ReplayBuffer, n):
 

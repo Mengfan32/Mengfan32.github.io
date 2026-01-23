@@ -6,6 +6,7 @@ import time
 from jinja2 import Template
 from openai import OpenAI
 import google.generativeai as genai
+
 import anthropic
 import time
 
@@ -34,6 +35,12 @@ class LLMBrain:
             "gpt-4o-2024-11-20",
             "gpt-4o-2024-08-06",
             "claude-3-7-sonnet-20250219",
+            "gemini-2.5-flash",  
+            "gemini-2.0-flash",  
+            "gemini-2.5-pro",   
+            "deepseek-chat",
+            "deepseek-coder",
+            "deepseek-reasoner",
         ]
         self.llm_model_name = llm_model_name
         if "gemini" in llm_model_name:
@@ -42,6 +49,12 @@ class LLMBrain:
         elif "claude" in llm_model_name:
             self.model_group = "anthropic"
             self.client = anthropic.Client(api_key=os.environ["ANTHROPIC_API_KEY"])
+        elif "deepseek" in llm_model_name:
+            self.model_group = "openai"  
+            self.client = OpenAI(
+                api_key=os.environ["DEEPSEEK_API_KEY"],
+                base_url="https://api.deepseek.com"  
+            )
         else:
             self.model_group = "openai"
             self.client = OpenAI()
@@ -61,6 +74,7 @@ class LLMBrain:
         for attempt in range(10):
             try:
                 if self.model_group == "openai":
+
                     completion = self.client.chat.completions.create(
                         model=self.llm_model_name,
                         messages=self.llm_conversation,
@@ -88,6 +102,7 @@ class LLMBrain:
                 else:
                     print("Waiting for 60 seconds before retrying...")
                     time.sleep(60)
+                    continue
 
             if self.model_group == "openai":
                 # add the response to self.llm_conversation
