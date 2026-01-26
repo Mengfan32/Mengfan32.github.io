@@ -56,7 +56,16 @@ class LLMNumOptimQTableSemanticsAgent:
             self.traj_buffer.start_new_trajectory()
         while not done:
             action = self.q_table.get_action(state)
-            action = int(np.reshape(action, (1,)))
+            # Robust conversion: handle scalar, list/tuple, and numpy array
+            try:
+                arr = np.asarray(action)
+                if arr.ndim == 0:
+                    action = int(arr.item())
+                else:
+                    action = int(arr.reshape(-1)[0])
+            except Exception:
+                # Fallback: try direct int conversion
+                action = int(action)
             next_state, reward, done = world.step(action)
             logging_file.write(f"{state} | {action} | {reward}\n")
             if record:
