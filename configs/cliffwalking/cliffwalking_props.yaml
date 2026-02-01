@@ -1,5 +1,5 @@
 task: dist_state_llm_num_optim
-num_episodes: 400
+num_episodes: 100
 gym_env_name: CliffWalking-v0
 render_mode: null
 logdir: logs/cliffwalking_props

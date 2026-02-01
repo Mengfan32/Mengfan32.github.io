@@ -31,6 +31,7 @@ def run_training_loop(
     optimum=1000,
     search_step_size=0.1,
     env_kwargs=None,
+    start_episode: int = 346,
 ):
     assert task in ["cont_space_llm_num_optim", "cont_space_llm_num_optim_rndm_proj", "dist_state_llm_num_optim"]
 
@@ -111,10 +112,15 @@ def run_training_loop(
     else:
         agent.replay_buffer.load(warmup_dir)
     
-    overall_log_file = open(f"{logdir}/overall_log.txt", "w")
-    overall_log_file.write("Iteration, CPU Time, API Time, Total Episodes, Total Steps, Total Reward\n")
-    overall_log_file.flush()
-    for episode in range(num_episodes):
+    # open overall log in append mode if resuming
+    mode = "a" if start_episode and start_episode > 0 else "w"
+    overall_log_file = open(f"{logdir}/overall_log.txt", mode)
+    if mode == "w":
+        overall_log_file.write("Iteration, CPU Time, API Time, Total Episodes, Total Steps, Total Reward\n")
+        overall_log_file.flush()
+
+    # iterate from start_episode (resume point) up to num_episodes-1
+    for episode in range(start_episode, num_episodes):
         print(f"Episode: {episode}")
         # create log dir
         curr_episode_dir = f"{logdir}/episode_{episode}"

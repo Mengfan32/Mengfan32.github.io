@@ -1,5 +1,5 @@
 task: cont_state_llm_num_optim_semantics
-num_episodes: 40
+num_episodes: 1000
 gym_env_name: Walker2d-v5
 render_mode: null
 logdir: logs/walker2d_propsp
