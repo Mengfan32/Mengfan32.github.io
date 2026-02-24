@@ -6,6 +6,7 @@ from world.base_world import BaseWorld
 import numpy as np
 import re
 import time
+import os
 
 
 class LLMNumOptimAgent:
@@ -57,6 +58,68 @@ class LLMNumOptimAgent:
         if self.bias:
             self.dim_state += 1
 
+    def _load_parameters_from_episode_file(self, filename):
+        with open(filename, "r") as f:
+            text = f.read()
+        # Parse all numeric values from "Weights"/"Bias" dump.
+        values = [
+            float(x)
+            for x in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", text)
+        ]
+        if len(values) < self.rank:
+            return None
+        return np.array(values[: self.rank]).reshape(-1)
+
+    def _load_mean_reward_from_rollout_file(self, filename):
+        with open(filename, "r") as f:
+            text = f.read()
+        rewards = [
+            float(x)
+            for x in re.findall(r"Total reward:\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)", text)
+        ]
+        if len(rewards) == 0:
+            return None
+        return float(np.mean(rewards))
+
+    def resume_from_logdir(self, logdir, start_episode):
+        """
+        True resume:
+        - Rebuild replay buffer from episode_0 ... episode_{start_episode-1}
+        - Restore current policy from episode_{start_episode-1}/parameters.txt
+        - Restore training episode counter to start_episode
+        """
+        resumed_count = 0
+        for episode in range(start_episode):
+            episode_dir = os.path.join(logdir, f"episode_{episode}")
+            params_file = os.path.join(episode_dir, "parameters.txt")
+            rollout_file = os.path.join(episode_dir, "training_rollout.txt")
+            if not (os.path.exists(params_file) and os.path.exists(rollout_file)):
+                continue
+
+            params = self._load_parameters_from_episode_file(params_file)
+            mean_reward = self._load_mean_reward_from_rollout_file(rollout_file)
+            if params is None or mean_reward is None:
+                continue
+            self.replay_buffer.add(params, mean_reward)
+            resumed_count += 1
+
+        # Restore the latest available policy before the resume point.
+        for episode in range(start_episode - 1, -1, -1):
+            params_file = os.path.join(logdir, f"episode_{episode}", "parameters.txt")
+            if not os.path.exists(params_file):
+                continue
+            params = self._load_parameters_from_episode_file(params_file)
+            if params is None:
+                continue
+            self.policy.update_policy(params)
+            break
+
+        self.training_episodes = start_episode
+        print(
+            f"[resume] loaded {resumed_count} historical episodes into replay buffer; "
+            f"set training_episodes={self.training_episodes}"
+        )
+
     def rollout_episode(self, world: BaseWorld, logging_file, record=True):
         state = world.reset()
         state = np.expand_dims(state, axis=0)
@@ -99,34 +162,77 @@ class LLMNumOptimAgent:
     def train_policy(self, world: BaseWorld, logdir):
 
         def parse_parameters(input_text):
-            # This regex looks for integers or floating-point numbers (including optional sign)
-            s = input_text.split("\n")[0]
-            print("response:", s)
+            # Parse params across the whole response (LLM may wrap lines).
+            preview = input_text.split("\n")[0]
+            print("response:", preview)
             pattern = re.compile(r"params\[(\d+)\]:\s*([+-]?\d+(?:\.\d+)?)")
-            matches = pattern.findall(s)
+            matches = pattern.findall(input_text)
 
-            # Convert matched strings to float (or int if you prefer to differentiate)
-            results = []
-            for match in matches:
-                results.append(float(match[1]))
-            print(results)
-            assert len(results) == self.rank
+            # Build an index->value map; if duplicated, keep the latest occurrence.
+            parsed = {}
+            for idx_str, val_str in matches:
+                idx = int(idx_str)
+                if 0 <= idx < self.rank:
+                    parsed[idx] = float(val_str)
+
+            # Robust fallback: if model output is truncated, keep old values for missing params.
+            current = self.policy.get_parameters().reshape(-1).astype(float)
+            results = current.copy()
+            for idx, val in parsed.items():
+                results[idx] = val
+
+            if len(parsed) != self.rank:
+                missing = self.rank - len(parsed)
+                print(
+                    f"[warn] parsed {len(parsed)}/{self.rank} params from LLM output; "
+                    f"filled {missing} missing params from previous policy."
+                )
             return np.array(results).reshape(-1)
 
         def str_nd_examples(replay_buffer: EpisodeRewardBufferNoBias, n):
+            """
+            Build a bounded-size prompt payload to avoid LLM context overflow.
+            We keep a diverse subset: recent samples + best + worst.
+            """
+            all_rows = []
+            for idx, (weights, reward) in enumerate(replay_buffer.buffer):
+                all_rows.append((idx, weights.reshape(-1), reward))
 
-            all_parameters = []
-            for weights, reward in replay_buffer.buffer:
-                parameters = weights
-                all_parameters.append((parameters.reshape(-1), reward))
+            if len(all_rows) == 0:
+                return ""
+
+            # Keep prompt bounded. These values keep context safely below model limits.
+            max_examples = 40
+            recent_k = 20
+            best_k = 10
+            worst_k = 10
+
+            selected = []
+            # Recent
+            selected.extend(all_rows[-recent_k:])
+            # Best / worst by reward
+            selected.extend(sorted(all_rows, key=lambda x: x[2], reverse=True)[:best_k])
+            selected.extend(sorted(all_rows, key=lambda x: x[2])[:worst_k])
+
+            # Deduplicate while preserving order by idx
+            seen = set()
+            deduped = []
+            for row in selected:
+                idx = row[0]
+                if idx in seen:
+                    continue
+                seen.add(idx)
+                deduped.append(row)
+
+            # If still too many, keep most recent max_examples
+            deduped = deduped[-max_examples:]
 
             text = ""
-            for parameters, reward in all_parameters:
+            for _, parameters, reward in deduped:
                 l = ""
                 for i in range(n):
                     l += f"params[{i}]: {parameters[i]:.5g}; "
-                fxy = reward
-                l += f"f(params): {fxy:.2f}\n"
+                l += f"f(params): {reward:.2f}\n"
                 text += l
             return text
 
