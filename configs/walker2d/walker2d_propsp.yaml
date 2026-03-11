@@ -16,5 +16,6 @@ warmup_episodes: 20
 warmup_dir: null
 bias: true
 optimum: 7000
+start_episode: 0
 search_step_size: 0.1
 env_desc_file: env_descriptions/walker2d.j2

@@ -30,6 +30,7 @@ def run_training_loop(
     rank=None,
     optimum=1000,
     search_step_size=0.1,
+    param_update_step_limit=0.2,
     env_kwargs=None,
     start_episode: int = 0,
 ):
@@ -46,6 +47,7 @@ def run_training_loop(
             gym_env_name,
             render_mode,
             max_traj_length,
+            env_kwargs=env_kwargs,
         )
 
 
@@ -63,6 +65,7 @@ def run_training_loop(
                 bias,
                 optimum,
                 search_step_size,
+                param_update_step_limit,
             )
         elif task == "cont_space_llm_num_optim_rndm_proj":
             agent = LLMNumOptimRndmPrjAgent(

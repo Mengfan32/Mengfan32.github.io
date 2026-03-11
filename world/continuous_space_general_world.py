@@ -8,23 +8,27 @@ class ContinualSpaceGeneralWorld(BaseWorld):
         gym_env_name,
         render_mode,
         max_traj_length=1000,
+        env_kwargs=None,
     ):
         super().__init__(gym_env_name)
         assert render_mode in ["human", "rgb_array", None]
+        self.env_kwargs = env_kwargs or {}
 
         if gym_env_name == "gym_navigation:NavigationTrack-v0":
             self.env = gym.make(
                 gym_env_name,
                 render_mode=render_mode,
                 track_id=1,
+                **self.env_kwargs,
             )
         elif gym_env_name == "maze-sample-3x3-v0":
             self.env = gym.make(
                 gym_env_name,
                 enable_render=render_mode,
+                **self.env_kwargs,
             )
         else:
-            self.env = gym.make(gym_env_name, render_mode=render_mode)
+            self.env = gym.make(gym_env_name, render_mode=render_mode, **self.env_kwargs)
         self.gym_env_name = gym_env_name
         self.render_mode = render_mode
         self.steps = 0
@@ -38,9 +42,14 @@ class ContinualSpaceGeneralWorld(BaseWorld):
     def reset(self, new_reward=False):
         del self.env
         if not new_reward:
-            self.env = gym.make(self.gym_env_name, render_mode=self.render_mode)
+            self.env = gym.make(self.gym_env_name, render_mode=self.render_mode, **self.env_kwargs)
         else:
-            self.env = gym.make(self.gym_env_name, render_mode=self.render_mode, healthy_reward=0)
+            self.env = gym.make(
+                self.gym_env_name,
+                render_mode=self.render_mode,
+                healthy_reward=0,
+                **self.env_kwargs,
+            )
 
         state, _ = self.env.reset()
         self.steps = 0

@@ -67,6 +67,7 @@ def run_training_loop(
             gym_env_name,
             render_mode,
             max_traj_length,
+            env_kwargs=env_kwargs,
         )
 
         agent = LLMNumOptimSemanticAgent(

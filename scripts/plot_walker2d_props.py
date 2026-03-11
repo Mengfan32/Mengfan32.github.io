@@ -151,6 +151,8 @@ def main():
         f'<polyline fill="none" stroke="#6f4e7c" stroke-width="2.0" points="{polyline(x_coords, y_median_coords)}"/>'
     )
 
+    legend_top = 6
+
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
 <rect width="100%" height="100%" fill="white"/>
 <text x="{width/2:.1f}" y="36" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#222">Walker2d ProPS: New Run ({len(rows)} Episodes)</text>
@@ -158,13 +160,13 @@ def main():
 <text x="24" y="{height/2:.1f}" transform="rotate(-90 24 {height/2:.1f})" text-anchor="middle" font-size="18" font-family="Arial, sans-serif" fill="#333">Reward</text>
 {''.join(lines)}
 <g font-family="Arial, sans-serif" font-size="14">
-  <rect x="{width-320}" y="{margin_top+10}" width="280" height="88" fill="white" stroke="#ddd"/>
-  <line x1="{width-300}" y1="{margin_top+35}" x2="{width-260}" y2="{margin_top+35}" stroke="#0b84a5" stroke-width="3"/>
-  <text x="{width-245}" y="{margin_top+40}" fill="#222">Max reward</text>
-  <line x1="{width-300}" y1="{margin_top+58}" x2="{width-260}" y2="{margin_top+58}" stroke="#f6c85f" stroke-width="3"/>
-  <text x="{width-245}" y="{margin_top+63}" fill="#222">Mean reward</text>
-  <line x1="{width-300}" y1="{margin_top+81}" x2="{width-260}" y2="{margin_top+81}" stroke="#6f4e7c" stroke-width="3"/>
-  <text x="{width-245}" y="{margin_top+86}" fill="#222">Median reward</text>
+  <rect x="{width-320}" y="{legend_top}" width="280" height="58" fill="white" stroke="#ddd"/>
+  <line x1="{width-300}" y1="{legend_top+18}" x2="{width-260}" y2="{legend_top+18}" stroke="#0b84a5" stroke-width="3"/>
+  <text x="{width-245}" y="{legend_top+23}" fill="#222">Max reward</text>
+  <line x1="{width-300}" y1="{legend_top+36}" x2="{width-260}" y2="{legend_top+36}" stroke="#f6c85f" stroke-width="3"/>
+  <text x="{width-245}" y="{legend_top+41}" fill="#222">Mean reward</text>
+  <line x1="{width-300}" y1="{legend_top+54}" x2="{width-260}" y2="{legend_top+54}" stroke="#6f4e7c" stroke-width="3"/>
+  <text x="{width-245}" y="{legend_top+59}" fill="#222">Median reward</text>
 </g>
 </svg>
 """

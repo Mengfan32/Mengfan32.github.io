@@ -24,6 +24,7 @@ class LLMNumOptimAgent:
         bias,
         optimum,
         search_step_size,
+        param_update_step_limit=0.2,
     ):
         self.start_time = time.process_time()
         self.api_call_time = 0
@@ -34,6 +35,7 @@ class LLMNumOptimAgent:
         self.bias = bias
         self.optimum = optimum
         self.search_step_size = search_step_size
+        self.param_update_step_limit = param_update_step_limit
 
         if not self.bias:
             param_count = dim_action * dim_state
@@ -250,7 +252,29 @@ class LLMNumOptimAgent:
 
         print(self.policy.get_parameters().shape)
         print(new_parameter_list.shape)
-        self.policy.update_policy(new_parameter_list)
+        # Trust-region style parameter update:
+        # limit per-parameter change to avoid unstable large jumps.
+        current_parameters = self.policy.get_parameters().reshape(-1).astype(float)
+        proposed_parameters = np.array(new_parameter_list).reshape(-1).astype(float)
+        if (
+            self.param_update_step_limit is not None
+            and float(self.param_update_step_limit) > 0
+            and len(current_parameters) == len(proposed_parameters)
+        ):
+            limit = float(self.param_update_step_limit)
+            delta = proposed_parameters - current_parameters
+            clipped_delta = np.clip(delta, -limit, limit)
+            clipped_count = int(np.sum(np.abs(delta) > limit))
+            if clipped_count > 0:
+                print(
+                    f"[step-limit] clipped {clipped_count}/{len(delta)} params "
+                    f"with limit={limit}"
+                )
+            applied_parameters = current_parameters + clipped_delta
+        else:
+            applied_parameters = proposed_parameters
+
+        self.policy.update_policy(applied_parameters)
         print(self.policy.get_parameters().shape)
         logging_q_filename = f"{logdir}/parameters.txt"
         logging_q_file = open(logging_q_filename, "w")
@@ -275,7 +299,7 @@ class LLMNumOptimAgent:
             results.append(result)
         print(f"Results: {results}")
         result = np.mean(results)
-        self.replay_buffer.add(new_parameter_list, result)
+        self.replay_buffer.add(applied_parameters, result)
 
         self.training_episodes += 1
 

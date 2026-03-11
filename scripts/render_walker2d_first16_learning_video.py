@@ -80,9 +80,13 @@ def render_episode_frames(
     return frames, total_reward
 
 
-def write_video_or_gif(frames, out_base: Path, fps: int):
+def write_video_or_gif(frames, out_base: Path, fps: int, gif_only: bool = False):
     out_mp4 = out_base.with_suffix(".mp4")
     out_gif = out_base.with_suffix(".gif")
+
+    if gif_only:
+        imageio.mimsave(out_gif, frames, fps=fps, loop=0)
+        return out_gif, "gif"
 
     try:
         with imageio.get_writer(out_mp4, fps=fps, codec="libx264", quality=8) as writer:
@@ -105,6 +109,7 @@ def main():
     parser.add_argument("--bias", action="store_true", default=True)
     parser.add_argument("--max-steps-per-episode", type=int, default=220)
     parser.add_argument("--fps", type=int, default=25)
+    parser.add_argument("--gif-only", action="store_true", help="Force GIF output only")
     parser.add_argument(
         "--out-base",
         type=Path,
@@ -145,7 +150,9 @@ def main():
         raise RuntimeError("No frames produced.")
 
     args.out_base.parent.mkdir(parents=True, exist_ok=True)
-    out_path, out_kind = write_video_or_gif(all_frames, args.out_base, args.fps)
+    out_path, out_kind = write_video_or_gif(
+        all_frames, args.out_base, args.fps, gif_only=args.gif_only
+    )
     print(f"Saved {out_kind.upper()}: {out_path}")
     print(f"Total frames: {len(all_frames)}")
     print("Episode summary:")

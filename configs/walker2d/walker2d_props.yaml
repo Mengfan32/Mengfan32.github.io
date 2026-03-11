@@ -1,8 +1,8 @@
 task: cont_space_llm_num_optim
-num_episodes: 1000
+num_episodes: 350
 gym_env_name: Walker2d-v5
 render_mode: null
-logdir: logs/walker2d_props
+logdir: logs/walker2d_props_fresh
 dim_actions: 6
 dim_states: 17
 max_traj_count: 1000
@@ -17,4 +17,8 @@ warmup_dir: null
 bias: true
 optimum: 7000
 search_step_size: 0.1
-start_episode: 179
+param_update_step_limit: 0.2
+start_episode: 0
+warmup_dir: null
+env_kwargs:
+  forward_reward_weight: -1.0
