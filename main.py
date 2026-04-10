@@ -1,5 +1,6 @@
 import yaml
 import argparse
+from dotenv import load_dotenv
 from runner import (
     llm_num_optim_runner,
 )
@@ -11,6 +12,9 @@ from envs import nim, pong
 
 
 def main():
+    # Load API keys and other environment variables from .env if present.
+    load_dotenv()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config",

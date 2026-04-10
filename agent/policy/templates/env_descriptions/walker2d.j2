@@ -1,6 +1,6 @@
 The walker is a two-dimensional bipedal robot consisting of seven main body parts - a single torso at the top (with the two legs splitting after the torso), two thighs in the middle below the torso, two legs below the thighs, and two feet attached to the legs on which the entire body rests. The goal is to walk in the forward (right) direction by applying torque to the six hinges connecting the seven body parts.
 
-The obverstation space consists of the following 17 parts (in order):
+The obverstation space consists of the following 19 parts (in order):
 - state[0]: z-coordinate of the torso (height of Walker2d)
 - state[1]: angle of the torso
 - state[2]: angle of the thigh joint
@@ -18,6 +18,8 @@ The obverstation space consists of the following 17 parts (in order):
 - state[14]: angular velocity of the thigh hinge
 - state[15]: angular velocity of the leg hinge
 - state[16]: angular velocity of the foot hinge
+- state[17]: sinusoidal phase feature sin(phase), a periodic feature to help produce alternating gait
+- state[18]: sinusoidal phase feature cos(phase), a periodic feature to help produce alternating gait
 
 The action space consists of the following 6 parts (in order):
 - action[0]: Torque applied on the thigh rotor
@@ -27,31 +29,19 @@ The action space consists of the following 6 parts (in order):
 - action[4]: Torque applied on the left leg rotor
 - action[5]: Torque applied on the left foot rotor
 
-The policy is a linear policy with 108 parameters and works as follows: 
+{% if policy_type == "mlp" %}
+The policy is a one-hidden-layer MLP with {{ rank }} parameters and hidden size {{ mlp_hidden_dim }}.
+It works as follows:
+h = tanh(state @ W1 + b1)
+action = h @ W2 + b2
+where W1 maps the 19-dimensional state to the {{ mlp_hidden_dim }}-dimensional hidden layer, and W2 maps the hidden layer to the 6-dimensional action.
+The last two state dimensions are periodic phase features intended to help the policy produce repeated alternating steps.
+{% else %}
+The policy is a linear policy with {{ rank }} parameters and works as follows: 
 action = state @ W + B
-where 
-W = [
-     params[0], params[1], params[2], params[3], params[4], params[5],
-     params[6], params[7], params[8], params[9], params[10], params[11],
-     params[12], params[13], params[14], params[15], params[16], params[17],
-     params[18], params[19], params[20], params[21], params[22], params[23],
-     params[24], params[25], params[26], params[27], params[28], params[29],
-     params[30], params[31], params[32], params[33], params[34], params[35],
-     params[36], params[37], params[38], params[39], params[40], params[41],
-     params[42], params[43], params[44], params[45], params[46], params[47],
-     params[48], params[49], params[50], params[51], params[52], params[53],
-     params[54], params[55], params[56], params[57], params[58], params[59],
-     params[60], params[61], params[62], params[63], params[64], params[65],
-     params[66], params[67], params[68], params[69], params[70], params[71],
-     params[72], params[73], params[74], params[75], params[76], params[77],
-     params[78], params[79], params[80], params[81], params[82], params[83],
-     params[84], params[85], params[86], params[87], params[88], params[89],
-     params[90], params[91], params[92], params[93], params[94], params[95],
-     params[96], params[97], params[98], params[99], params[100], params[101],
-]
-B = [
-     params[102], params[103], params[104], params[105], params[106], params[107]
-]
+where W maps the 19-dimensional state to the 6-dimensional action, and B is a 6-dimensional bias term.
+The last two state dimensions are periodic phase features intended to help the linear policy produce repeated alternating steps.
+{% endif %}
 
 The total reward is: reward = healthy_reward bonus + forward_reward - ctrl_cost.
 

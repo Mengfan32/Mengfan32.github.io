@@ -53,9 +53,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-root", type=Path, default=Path("logs/walker2d_props"))
     parser.add_argument("--env-name", type=str, default="Walker2d-v5")
-    parser.add_argument("--dim-states", type=int, default=17)
+    parser.add_argument("--dim-states", type=int, default=19)
     parser.add_argument("--dim-actions", type=int, default=6)
     parser.add_argument("--bias", action="store_true", default=True)
+    parser.add_argument("--policy-type", type=str, default="linear", choices=["linear", "mlp"])
+    parser.add_argument("--mlp-hidden-dim", type=int, default=8)
     parser.add_argument("--max-steps", type=int, default=450)
     parser.add_argument("--fps", type=int, default=25)
     parser.add_argument(
@@ -78,16 +80,20 @@ def main():
             continue
 
         params_file = args.log_root / f"episode_{ep}" / "parameters.txt"
-        weight, bias_vec = load_policy_params(
-            params_file, args.dim_states, args.dim_actions, bias=args.bias
+        policy_params = load_policy_params(
+            params_file,
+            args.dim_states,
+            args.dim_actions,
+            bias=args.bias,
+            policy_type=args.policy_type,
+            mlp_hidden_dim=args.mlp_hidden_dim,
         )
 
         out_gif = args.out_dir / f"walker2d_stage_{idx}_{start}_{end}_episode_{ep}.gif"
         out_png = args.out_dir / f"walker2d_stage_{idx}_{start}_{end}_episode_{ep}_preview.png"
         final_reward, frames = render_episode(
             args.env_name,
-            weight,
-            bias_vec,
+            policy_params,
             ep,
             args.max_steps,
             args.fps,

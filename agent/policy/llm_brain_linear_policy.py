@@ -96,6 +96,9 @@ class LLMBrain:
                     response = response.text
             except Exception as e:
                 print(f"Error: {e}")
+                error_str = str(e).lower()
+                if "invalid_request_error" in error_str or "maximum context length" in error_str:
+                    raise
                 print("Retrying...")
                 if attempt == 9:
                     raise Exception("Failed")
@@ -142,6 +145,9 @@ class LLMBrain:
 
             except Exception as e:
                 print(f"Error: {e}")
+                error_str = str(e).lower()
+                if "invalid_request_error" in error_str or "maximum context length" in error_str:
+                    raise
                 print("Retrying...")
                 if attempt == 4:
                     raise Exception("Failed")
@@ -493,6 +499,8 @@ class LLMBrain:
         optimum=None,
         search_step_size=0.1,
         actions=None,
+        policy_type="linear",
+        mlp_hidden_dim=8,
     ):
         self.reset_llm_conversation()
 
@@ -505,6 +513,8 @@ class LLMBrain:
                 "optimum": str(optimum),
                 "step_size": str(search_step_size),
                 "actions": actions,
+                "policy_type": policy_type,
+                "mlp_hidden_dim": mlp_hidden_dim,
             }
         )
 

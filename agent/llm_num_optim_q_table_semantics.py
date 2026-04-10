@@ -149,6 +149,23 @@ class LLMNumOptimQTableSemanticsAgent:
                 parameters = weights
                 all_parameters.append((parameters.reshape(-1), reward))
 
+            # Keep prompt size bounded to avoid model context overflow.
+            max_examples = 40
+            if len(all_parameters) > max_examples:
+                recent_keep = min(20, max_examples // 2)
+                top_keep = max_examples - recent_keep
+
+                recent_indices = list(range(len(all_parameters) - recent_keep, len(all_parameters)))
+                remaining_indices = list(range(len(all_parameters) - recent_keep))
+                top_indices = sorted(
+                    remaining_indices,
+                    key=lambda i: all_parameters[i][1],
+                    reverse=True,
+                )[:top_keep]
+
+                selected_indices = sorted(set(top_indices + recent_indices))
+                all_parameters = [all_parameters[i] for i in selected_indices]
+
             text = ""
             print('Num trajs in buffer:', len(traj_buffer.buffer))
             print('Num params in buffer:', len(all_parameters))

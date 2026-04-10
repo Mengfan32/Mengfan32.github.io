@@ -46,12 +46,18 @@ def main():
     parser.add_argument("--log-root", type=Path, default=Path("logs/walker2d_props"))
     parser.add_argument("--n-episodes", type=int, default=117)
     parser.add_argument("--tag", type=str, default="new_117")
+    parser.add_argument("--output-prefix", type=str, default="walker2d_props")
+    parser.add_argument("--title", type=str, default="Walker2d ProPS: New Run")
     args = parser.parse_args()
 
     log_root = args.log_root
     n_episodes = args.n_episodes
-    out_csv = Path(f"logs/walker2d_plots/walker2d_props_{args.tag}_episode_rewards.csv")
-    out_svg = Path(f"logs/walker2d_plots/walker2d_props_{args.tag}_reward_curve.svg")
+    out_csv = Path(
+        f"logs/walker2d_plots/{args.output_prefix}_{args.tag}_episode_rewards.csv"
+    )
+    out_svg = Path(
+        f"logs/walker2d_plots/{args.output_prefix}_{args.tag}_reward_curve.svg"
+    )
 
     rows = collect_episode_stats(log_root, n_episodes)
     if not rows:
@@ -155,7 +161,7 @@ def main():
 
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
 <rect width="100%" height="100%" fill="white"/>
-<text x="{width/2:.1f}" y="36" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#222">Walker2d ProPS: New Run ({len(rows)} Episodes)</text>
+<text x="{width/2:.1f}" y="36" text-anchor="middle" font-size="28" font-family="Arial, sans-serif" fill="#222">{args.title} ({len(rows)} Episodes)</text>
 <text x="{width/2:.1f}" y="{height-18}" text-anchor="middle" font-size="18" font-family="Arial, sans-serif" fill="#333">Episode</text>
 <text x="24" y="{height/2:.1f}" transform="rotate(-90 24 {height/2:.1f})" text-anchor="middle" font-size="18" font-family="Arial, sans-serif" fill="#333">Reward</text>
 {''.join(lines)}

@@ -10,17 +10,53 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 FLOAT_PATTERN = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+PHASE_PERIOD = 32
 
 
-def load_policy_params(parameters_txt: Path, dim_states: int, dim_actions: int, bias: bool):
+def load_policy_params(
+    parameters_txt: Path,
+    dim_states: int,
+    dim_actions: int,
+    bias: bool,
+    policy_type: str = "linear",
+    mlp_hidden_dim: int = 8,
+):
     text = parameters_txt.read_text(encoding="utf-8", errors="ignore")
     values = [float(x) for x in FLOAT_PATTERN.findall(text)]
-    expected = (dim_states + (1 if bias else 0)) * dim_actions
+    if policy_type == "mlp":
+        expected = (
+            dim_states * mlp_hidden_dim
+            + mlp_hidden_dim
+            + mlp_hidden_dim * dim_actions
+            + dim_actions
+        )
+    else:
+        expected = (dim_states + (1 if bias else 0)) * dim_actions
     if len(values) < expected:
         raise RuntimeError(
             f"Not enough parameters in {parameters_txt}: got {len(values)}, expected {expected}"
         )
     arr = np.array(values[:expected], dtype=np.float32)
+    if policy_type == "mlp":
+        cursor = 0
+        w1_size = dim_states * mlp_hidden_dim
+        b1_size = mlp_hidden_dim
+        w2_size = mlp_hidden_dim * dim_actions
+        w1 = arr[cursor : cursor + w1_size].reshape(dim_states, mlp_hidden_dim)
+        cursor += w1_size
+        b1 = arr[cursor : cursor + b1_size]
+        cursor += b1_size
+        w2 = arr[cursor : cursor + w2_size].reshape(mlp_hidden_dim, dim_actions)
+        cursor += w2_size
+        b2 = arr[cursor : cursor + dim_actions]
+        return {
+            "policy_type": "mlp",
+            "w1": w1,
+            "b1": b1,
+            "w2": w2,
+            "b2": b2,
+            "policy_dim_states": dim_states,
+        }
     if bias:
         arr = arr.reshape(dim_states + 1, dim_actions)
         weight = arr[:-1, :]
@@ -28,7 +64,12 @@ def load_policy_params(parameters_txt: Path, dim_states: int, dim_actions: int, 
     else:
         weight = arr.reshape(dim_states, dim_actions)
         bias_vec = np.zeros((dim_actions,), dtype=np.float32)
-    return weight, bias_vec
+    return {
+        "policy_type": "linear",
+        "weight": weight,
+        "bias_vec": bias_vec,
+        "policy_dim_states": dim_states,
+    }
 
 
 def overlay_text(frame: np.ndarray, episode: int, reward: float):
@@ -48,10 +89,23 @@ def overlay_text(frame: np.ndarray, episode: int, reward: float):
     return np.array(img)
 
 
+def augment_state_for_policy(state: np.ndarray, step: int, policy_dim_states: int):
+    state = np.asarray(state, dtype=np.float32).reshape(-1)
+    if state.shape[0] == policy_dim_states:
+        return state
+    if state.shape[0] + 2 == policy_dim_states:
+        phase = 2.0 * np.pi * (step % PHASE_PERIOD) / PHASE_PERIOD
+        return np.concatenate(
+            (state, np.array([np.sin(phase), np.cos(phase)], dtype=np.float32))
+        )
+    raise RuntimeError(
+        f"State dim mismatch for rendering: state={state.shape[0]}, policy={policy_dim_states}"
+    )
+
+
 def render_episode_frames(
     env_name: str,
-    weight: np.ndarray,
-    bias_vec: np.ndarray,
+    policy_params: dict,
     episode: int,
     max_steps: int,
 ):
@@ -67,7 +121,21 @@ def render_episode_frames(
         if frame is not None:
             frames.append(overlay_text(frame, episode, total_reward))
 
-        action = np.matmul(state, weight) + bias_vec
+        policy_state = augment_state_for_policy(
+            state, step, policy_params["policy_dim_states"]
+        )
+        if policy_params["policy_type"] == "mlp":
+            hidden = np.tanh(
+                np.matmul(policy_state, policy_params["w1"]) + policy_params["b1"]
+            )
+            action = np.tanh(
+                np.matmul(hidden, policy_params["w2"]) + policy_params["b2"]
+            )
+        else:
+            action = (
+                np.matmul(policy_state, policy_params["weight"])
+                + policy_params["bias_vec"]
+            )
         state, reward, terminated, truncated, _ = env.step(action.astype(np.float32))
         total_reward += float(reward)
         done = bool(terminated or truncated)
@@ -104,9 +172,11 @@ def main():
     parser.add_argument("--start-episode", type=int, default=0)
     parser.add_argument("--end-episode", type=int, default=15)
     parser.add_argument("--env-name", type=str, default="Walker2d-v5")
-    parser.add_argument("--dim-states", type=int, default=17)
+    parser.add_argument("--dim-states", type=int, default=19)
     parser.add_argument("--dim-actions", type=int, default=6)
     parser.add_argument("--bias", action="store_true", default=True)
+    parser.add_argument("--policy-type", type=str, default="linear", choices=["linear", "mlp"])
+    parser.add_argument("--mlp-hidden-dim", type=int, default=8)
     parser.add_argument("--max-steps-per-episode", type=int, default=220)
     parser.add_argument("--fps", type=int, default=25)
     parser.add_argument("--gif-only", action="store_true", help="Force GIF output only")
@@ -125,13 +195,17 @@ def main():
         if not params_file.exists():
             print(f"Skip episode {episode}: missing {params_file}")
             continue
-        weight, bias_vec = load_policy_params(
-            params_file, args.dim_states, args.dim_actions, bias=args.bias
+        policy_params = load_policy_params(
+            params_file,
+            args.dim_states,
+            args.dim_actions,
+            bias=args.bias,
+            policy_type=args.policy_type,
+            mlp_hidden_dim=args.mlp_hidden_dim,
         )
         frames, total_reward = render_episode_frames(
             args.env_name,
-            weight,
-            bias_vec,
+            policy_params,
             episode,
             args.max_steps_per_episode,
         )

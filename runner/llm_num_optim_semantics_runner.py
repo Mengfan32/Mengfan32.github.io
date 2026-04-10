@@ -32,6 +32,8 @@ def run_training_loop(
     env_kwargs=None,
     env_desc_file=None,
     start_episode: int = 197,
+    policy_type: str = "linear",
+    mlp_hidden_dim: int = 8,
 ):
     assert task in ["dist_state_llm_num_optim_semantics", "cont_state_llm_num_optim_semantics"]
 
@@ -84,16 +86,37 @@ def run_training_loop(
             optimum,
             search_step_size,
             env_desc_file=env_desc_file,
+            policy_type=policy_type,
+            mlp_hidden_dim=mlp_hidden_dim,
         )
 
     print('init done')
 
-    if not warmup_dir:
-        warmup_dir = f"{logdir}/warmup"
-        os.makedirs(warmup_dir, exist_ok=True)
-        agent.random_warmup(world, warmup_dir, warmup_episodes)
+    if start_episode and start_episode > 0:
+        if warmup_dir:
+            if os.path.exists(warmup_dir):
+                agent.replay_buffer.load(warmup_dir)
+            else:
+                print(f"[resume] warmup_dir not found: {warmup_dir}. Skipping warmup load.")
+        else:
+            warmup_dir = f"{logdir}/warmup"
+            if os.path.exists(warmup_dir):
+                agent.replay_buffer.load(warmup_dir)
+            else:
+                print(f"[resume] no warmup dir found at {warmup_dir}.")
+
+        if hasattr(agent, "resume_from_logdir"):
+            agent.resume_from_logdir(logdir, start_episode)
+        else:
+            agent.training_episodes = start_episode
+            print(f"[resume] set training_episodes={start_episode} (fallback)")
     else:
-        agent.replay_buffer.load(warmup_dir)
+        if not warmup_dir:
+            warmup_dir = f"{logdir}/warmup"
+            os.makedirs(warmup_dir, exist_ok=True)
+            agent.random_warmup(world, warmup_dir, warmup_episodes)
+        else:
+            agent.replay_buffer.load(warmup_dir)
     
     # open overall log in append mode if resuming
     mode = "a" if start_episode and start_episode > 0 else "w"
