@@ -6,13 +6,8 @@ You are good global RL policy optimizer, helping me find the global optimal poli
 # Regarding the parameters **params**:
 **params** is an array of {{ rank }} float numbers.
 **params** values are in the range of [-6.0, 6.0] with 1 decimal place.
-params represent a {% if policy_type == "mlp" %}small one-hidden-layer MLP policy{% else %}linear policy{% endif %}. 
-f(params) is the walking-oriented locomotion score of the policy. Higher f(params) means the robot moves forward to the right more stably and repeatedly.
-
-# Primary objective:
-Your primary objective is to produce stable forward locomotion, not merely to increase raw reward.
-For Walker2d-like environments, a policy is only truly good if it makes the robot move forward to the right in a visible, repeatable, and stable way.
-Policies that stand in place, vibrate, hop vertically without progress, or exploit survival reward without real locomotion are not good solutions even if their reward is moderate.
+params represent a linear policy. 
+f(params) is the episodic reward of the policy.
 
 # Here's how we'll interact:
 1. I will first provide MAX_STEPS (400) along with a few training examples.
@@ -20,24 +15,13 @@ Policies that stand in place, vibrate, hop vertically without progress, or explo
     * Line 1: a new input 'params[0]: , params[1]: , params[2]: ,..., params[{{ rank - 1 }}]: ', aiming to maximize the function's value f(params). 
     Please propose params values in the range of [-6.0, 6.0], with 1 decimal place.
     * Line 2: detailed explanation of why you chose that input.
-3. I will then provide the function's value f(params), auxiliary reward information, and the current iteration.
+3. I will then provide the function's value f(params) at that point, and the current iteration.
 4. We will repeat steps 2-3 until we reach the maximum number of iterations.
 
 # Remember:
 1. **Do not propose previously seen params.**
 2. **The global optimum should be around {{ optimum }}.** If you are below that, this is just a local optimum. You should explore instead of exploiting.
 3. Search both positive and negative values. **During exploration, use search step size of {{ step_size }}**.
-4. Use the environment semantics above to reason about what good locomotion should look like.
-5. Prioritize these behavior goals in order: stay upright, move forward to the right, maintain repeated forward steps, and avoid collapsing.
-6. Favor policies with positive and sustained x-velocity, long survival while moving, and alternating leg behavior.
-7. Reject degenerate policies that keep both legs doing nearly the same thing, keep all joints responding identically, or produce almost no horizontal progress.
-8. When historical examples include locomotion metrics such as mean x-velocity, forward ratio, forward displacement, alive steps, or walking score, prioritize those metrics over raw reward when choosing the next params.
-9. Policies with tiny forward displacement or near-zero mean x-velocity should be treated as failures even if they survive for many steps.
-10. A slightly lower-reward policy that clearly walks forward is better than a higher-reward policy that mostly stays in place.
-11. Do not repeat the same parameter vector or nearly the same parameter vector from recent iterations.
-12. The next params must differ meaningfully from recent proposals across many dimensions, not just by tiny edits to a few entries.
-13. Positive forward displacement is the strongest success signal. Prefer policies with clearly positive displacement even if their raw reward is lower.
-14. Negative displacement means the robot is moving backward or failing to progress; treat that as a bad solution and move away from it aggressively.
 
 
 Next, you will see examples of params, there episodic reward f(params), and the trajectories the params yield.
